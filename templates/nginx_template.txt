@@ -1,0 +1,105 @@
+server {
+    server_name @DOMAIN @WDOMAIN;
+	root /var/www/html;
+
+	client_max_body_size 8M;
+
+	# Add index.php to the list if you are using PHP
+	index index.html index.htm index.nginx-debian.html;
+
+	location / {
+		proxy_pass http://127.0.0.1:82;
+	}
+	location /dashboard {
+		proxy_pass http://127.0.0.1:81/;
+	}
+
+	location /graphql {
+		proxy_pass http://order-Publi-1P37U29XDH5ZC-1788200878.eu-central-1.elb.amazonaws.com/graphql/;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header Host $http_host;
+		proxy_set_header X-NginX-Proxy false;
+		proxy_redirect off;
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection "upgrade";
+	}
+
+	location /plugins/mirumee.payments.stripe/webhooks/paid {
+		proxy_pass http://order-Publi-1P37U29XDH5ZC-1788200878.eu-central-1.elb.amazonaws.com/plugins/mirumee.payments.stripe/webhooks/paid/;
+
+		proxy_set_header Host $http_host;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_redirect off;
+		proxy_buffering off;
+
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection "upgrade";
+	}	
+
+	listen 443 ssl; # managed by Certbot
+	ssl_certificate /etc/letsencrypt/live/@DOMAIN/fullchain.pem; # managed by Certbot
+	ssl_certificate_key /etc/letsencrypt/live/@DOMAIN/privkey.pem; # managed by Certbot
+	include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+	ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+	listen 81;
+	listen [::]:81;
+
+	root /var/www/html/orderich/dashboard;
+	index index.html;
+	# Other config you desire (TLS, logging, etc)...
+	location / {
+		try_files $uri $uri/ /index.html;
+	}
+}
+
+server {
+	listen 82;
+	listen [::]:82;
+
+	root /var/www/html/orderich/storefront;
+	index index.html;
+	# Other config you desire (TLS, logging, etc)...
+	location / {
+		try_files $uri $uri/ $uri.html /index.html;
+	}
+	## All static files will be served directly.
+	location ~* ^.+\.(?:css|cur|js|jpe?g|gif|htc|ico|png|html|xml|otf|ttf|eot|woff|woff2|svg)$ {
+		access_log off;
+		expires 30d;
+		add_header Cache-Control public;
+
+		## No need to bleed constant updates. Send the all shebang in one
+		## fell swoop.
+		tcp_nodelay off;
+
+		## Set the OS file cache.
+		open_file_cache max=3000 inactive=120s;
+		open_file_cache_valid 45s;
+		open_file_cache_min_uses 2;
+		open_file_cache_errors off;
+	}
+}
+
+server {
+    if ($host = @WDOMAIN) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    if ($host = @DOMAIN) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80 ;
+    listen [::]:80 ;
+    server_name @DOMAIN @WDOMAIN;
+    return 404; # managed by Certbot
+}
